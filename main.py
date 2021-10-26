@@ -3,6 +3,9 @@ from Bio import Phylo
 import pandas as pd
 from click import echo
 import json
+import funcy as fy
+from collections import OrderedDict
+import csv
 
 def lookup_by_names(tree):
     names = {}
@@ -42,6 +45,23 @@ def dealias_lineage_name(name,alias_dict):
     else:
         return dealiased_letter
 
+def candidate_lineage_counts(value_counts):
+    candidates = OrderedDict()
+    for lineage in value_counts:
+        lineage_split = lineage.split('.')
+        for i in range(len(lineage_split)+1):
+            candidates['.'.join(lineage_split[:i])] = candidates.get('.'.join(lineage_split[:i]),0) + value_counts[lineage]
+    return candidates
+
+def get_consensus_lineage(candidates):
+    count = candidates['']
+    consensus_lineages = fy.select_values(lambda x: x==count, candidates)
+    consensus_lineage = next(reversed(consensus_lineages))
+    return consensus_lineage
+
+
+
+
 @click.command()
 @click.option('-t', '--tree', type=click.File('r'), default = 'data/tree.nwk')
 @click.option('-m', '--metadata',type=click.File('r'), default = 'data/pango_default.csv')
@@ -60,10 +80,17 @@ def main(tree,metadata,outfile,aliases):
     for internal in tree.get_nonterminals():
         internals.append(internal.name)
     count = 0
+    internal_lineages = []
     for internal in internals:
-        if count % 20 == 0:
-            echo(get_lineage_counts(get_terminal_names(lookup_dict[internal]),meta))
-        count += 1
+        internal_lineages.append({
+            'node' : internal,
+            'lineage' : get_consensus_lineage(candidate_lineage_counts(get_lineage_counts(get_terminal_names(lookup_dict[internal]),meta)))
+        })
+    fieldnames = ['node','lineage']
+    dict_writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+    dict_writer.writeheader()
+    dict_writer.writerows(internal_lineages)  
+    
     # echo(lookup_dict[internals[10]])
     # reconstruct_lineage(lookup_dict(internals[0]),meta)
 

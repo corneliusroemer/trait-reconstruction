@@ -1,4 +1,4 @@
-# Trait reconstruction with majority rule
+ reconstruction with majority rule
 
 ## Input
 
