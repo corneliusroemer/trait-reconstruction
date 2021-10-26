@@ -36,7 +36,7 @@ def dealias_lineage_name(name, alias_dict):
     letter = name_split[0]
     dealiased_letter = alias_dict[letter]
     if type(dealiased_letter) == list:
-        dealiased_letter = letter
+        return letter
     if len(name_split) > 2:
         return dealiased_letter + "." + ".".join(name_split[1:])
     if len(name_split) == 2:
@@ -56,8 +56,24 @@ def candidate_lineage_counts(value_counts):
     return candidates
 
 
+def realias(dealiased, alias_dict):
+    if dealiased == "":
+        return "A/B"
+    name_split = dealiased.split(".")
+    if len(name_split) <= 4:
+        return dealiased
+    to_lookup = ".".join(name_split[:4])
+    alias = [k for k, v in alias_dict.items() if v == to_lookup][0]
+    if len(name_split) > 5:
+        return alias + "." + ".".join(name_split[4:])
+    else:
+        return alias + "." + name_split[4]
+
+
 def get_consensus_lineage(candidates):
+    # TODO: #2 figure out how to deal with recombinants like XA
     count = candidates[""]
+    # recombinant_count = recombinant_count(candidates)
     consensus_lineages = fy.select_values(lambda x: x == count, candidates)
     consensus_lineage = next(reversed(consensus_lineages))
     return consensus_lineage
@@ -69,6 +85,7 @@ def get_consensus_lineage(candidates):
 @click.option("-o", "--outfile", type=click.File("w"), default="reconstructed.tsv")
 @click.option("-a", "--aliases", type=click.File("r"), default="data/alias_key.json")
 def main(tree, metadata, outfile, aliases):
+    # TODO: #1 Prevent empty lineage return values
     alias_dict = json.load(aliases)
     alias_dict["A"] = "A"
     alias_dict["B"] = "B"
@@ -84,10 +101,13 @@ def main(tree, metadata, outfile, aliases):
         internal_lineages.append(
             {
                 "node": internal,
-                "lineage": get_consensus_lineage(
-                    candidate_lineage_counts(
-                        get_lineage_counts(get_terminal_names(lookup_dict[internal]), meta)
-                    )
+                "lineage": realias(
+                    get_consensus_lineage(
+                        candidate_lineage_counts(
+                            get_lineage_counts(get_terminal_names(lookup_dict[internal]), meta)
+                        )
+                    ),
+                    alias_dict,
                 ),
             }
         )
